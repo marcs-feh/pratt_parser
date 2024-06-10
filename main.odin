@@ -2,10 +2,18 @@ package pratt_parser
 
 import "core:fmt"
 import "core:strings"
+import "core:mem"
 
-SOURCE :: "- 1 + 5"
+SOURCE :: "5[1 + 5[1]]"
+
+COMPILER_MEMORY_POOL: [16 * mem.Megabyte]byte
 
 main :: proc(){
+	arena : mem.Arena
+	mem.arena_init(&arena, COMPILER_MEMORY_POOL[:])
+	context.allocator = mem.arena_allocator(&arena)
+	defer free_all(context.allocator)
+
 	tokens := tokenize(SOURCE)
 	ast := parse(tokens)
 	fmt.println(tokens)
@@ -32,6 +40,12 @@ sexpr_rec :: proc(sb: ^strings.Builder, expr: ^Expression){
 		fmt.sbprint(sb, " ")
 		sexpr_rec(sb, expr.right)
 		fmt.sbprint(sb, ")")
+	case IndexExpr:
+		fmt.sbprint(sb, "([] ")
+		sexpr_rec(sb, expr.object)
+		fmt.sbprint(sb, " ")
+		sexpr_rec(sb, expr.index)
+		fmt.sbprint(sb, ")")
 	case UnaryExpr:
 		fmt.sbprintf(sb, "(%v ", op_map[expr.operator])
 		sexpr_rec(sb, expr.operand)
@@ -47,4 +61,5 @@ OPERATOR_MAP :: #partial #sparse [TokenKind]string{
 	.Star = "*",
 	.Slash = "/",
 	.Caret = "^",
+	.Bang = "!",
 }

@@ -15,33 +15,11 @@ Lexer :: struct {
 TokenKind :: enum {
 	Atom = 1,
 	Plus, Minus, Star, Slash, Bang, Caret,
+	ParenOpen, ParenClose,
+	SquareOpen, SquareClose,
 
 	End_Of_File = -1,
 }
-
-// Atom could be any primary expression
-Atom :: distinct int
-
-Token :: struct {
-	kind: TokenKind,
-	payload: Atom,
-}
-
-Expression :: union {
-	Atom, UnaryExpr, BinaryExpr,
-}
-
-UnaryExpr :: struct {
-	operator: TokenKind,
-	operand: ^Expression,
-}
-
-BinaryExpr :: struct {
-	operator: TokenKind,
-	left: ^Expression,
-	right: ^Expression,
-}
-
 
 lexer_consume :: proc(lexer: ^Lexer) -> (rune, int) {
 	if lexer.current >= len(lexer.source){
@@ -75,6 +53,10 @@ tokenize :: proc(source: string) -> []Token {
 		case '/': append(&tokens, Token{ kind = .Slash })
 		case '!': append(&tokens, Token{ kind = .Bang })
 		case '^': append(&tokens, Token{ kind = .Caret })
+		case '(': append(&tokens, Token{ kind = .ParenOpen })
+		case ')': append(&tokens, Token{ kind = .ParenClose })
+		case '[': append(&tokens, Token{ kind = .SquareOpen })
+		case ']': append(&tokens, Token{ kind = .SquareClose })
 		case ' ', '\t', '\r', '\n': continue
 		case:
 			if unicode.is_number(r){
