@@ -6,6 +6,15 @@ import "core:unicode"
 import str "core:strings"
 import utf "core:unicode/utf8"
 
+Number :: distinct int
+
+Identifier :: distinct string
+
+Token :: struct {
+	kind: TokenKind,
+	payload: Primary,
+}
+
 Lexer :: struct {
 	current: int,
 	previous: int,
@@ -13,7 +22,8 @@ Lexer :: struct {
 }
 
 TokenKind :: enum {
-	Atom = 1,
+	Number = 1,
+	Identifier,
 	Plus, Minus, Star, Slash, Bang, Caret,
 	ParenOpen, ParenClose,
 	SquareOpen, SquareClose,
@@ -63,6 +73,10 @@ tokenize :: proc(source: string) -> []Token {
 				lexer.current -= n
 				append(&tokens, tokenize_number(&lexer))
 			}
+			else if is_identifier(r, true){
+				lexer.current -= n
+				append(&tokens, tokenize_identifier(&lexer))
+			}
 			else {
 				panic("Unknown token")
 			}
@@ -71,6 +85,25 @@ tokenize :: proc(source: string) -> []Token {
 
 	shrink(&tokens)
 	return tokens[:]
+}
+
+tokenize_identifier :: proc(lexer: ^Lexer) -> Token {
+	lexer.previous = lexer.current
+
+	for {
+		r, n := lexer_consume(lexer)
+		if !is_identifier(r){
+			lexer.current -= n
+			break
+		}
+	}
+
+	lexeme := string(lexer.source[lexer.previous:lexer.current])
+
+	return Token {
+		kind = .Identifier,
+		payload = Identifier(lexeme),
+	}
 }
 
 tokenize_number :: proc(lexer: ^Lexer) -> Token {
@@ -97,12 +130,20 @@ tokenize_number :: proc(lexer: ^Lexer) -> Token {
 	assert(ok, "Faild to parse integer")
 
 	return Token {
-		kind = .Atom,
-		payload = Atom(val),
+		kind = .Number,
+		payload = Number(val),
 	}
 }
 
+@private
 append_encoded :: proc(buf: ^[dynamic]byte, r: rune){
 	bytes, n := utf.encode_rune(r)
 	append(buf, ..bytes[:n])
+}
+
+@private
+is_identifier :: proc(c: rune, start := false) -> bool {
+	is_digit := !start && unicode.is_number(c)
+	is_alpha := unicode.is_alpha(c)
+	return is_digit || is_alpha || c == '_'
 }

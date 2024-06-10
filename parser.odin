@@ -21,8 +21,8 @@ parse_expr :: proc(parser: ^Parser, min_bp: int) -> ^Expression {
 
 	// Unary or Primary expression
 	#partial switch tk.kind {
-	case .Atom:
-		left = make_atom(tk.payload)
+	case .Number, .Identifier:
+		left = make_primary(tk.payload)
 	case .ParenOpen:
 		left = parse_expr(parser, 0)
 		assert(parser_consume(parser).kind == .ParenClose, "Expected ')'")
@@ -39,8 +39,7 @@ parse_expr :: proc(parser: ^Parser, min_bp: int) -> ^Expression {
 		lookahead := parser_peek(parser, 0)
 		if lookahead.kind == .End_Of_File { break }
 
-		// Handle postfix operator and "pseudo infix" ones like indexing and
-		// function call
+		// Handle postfix operator and "pseudo infix" ones like indexing
 		if lbp, ok := postfix_binding_power(lookahead); ok {
 			if lbp < min_bp { break }
 			_ = parser_consume(parser)
@@ -100,7 +99,7 @@ make_index :: proc(object: ^Expression, index: ^Expression) -> ^Expression {
 	return e
 }
 
-make_atom :: proc(a: Atom) -> ^Expression {
+make_primary :: proc(a: $T) -> ^Expression {
 	e := new(Expression)
 	e^ = a
 	return e
@@ -150,16 +149,13 @@ postfix_binding_power :: proc(tk: Token) -> (lbp: int, ok := false){
 }
 
 
-// Atom could be any primary expression
-Atom :: distinct int
-
-Token :: struct {
-	kind: TokenKind,
-	payload: Atom,
+Expression :: union {
+	Primary, UnaryExpr, BinaryExpr, IndexExpr,
 }
 
-Expression :: union {
-	Atom, UnaryExpr, BinaryExpr, IndexExpr,
+Primary :: union #no_nil {
+	Number,
+	Identifier,
 }
 
 UnaryExpr :: struct {

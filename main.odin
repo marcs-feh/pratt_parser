@@ -4,9 +4,9 @@ import "core:fmt"
 import "core:strings"
 import "core:mem"
 
-SOURCE :: "5[1 + 5[1]]"
+SOURCE :: "arr[1]! + 4 / 4!"
 
-COMPILER_MEMORY_POOL: [16 * mem.Megabyte]byte
+COMPILER_MEMORY_POOL : [16 * mem.Megabyte]byte
 
 main :: proc(){
 	arena : mem.Arena
@@ -50,11 +50,12 @@ sexpr_rec :: proc(sb: ^strings.Builder, expr: ^Expression){
 		fmt.sbprintf(sb, "(%v ", op_map[expr.operator])
 		sexpr_rec(sb, expr.operand)
 		fmt.sbprint(sb, ")")
-	case Atom:
-		fmt.sbprint(sb, Atom(expr))
+	case Primary:
+		fmt.sbprint(sb, expr)
 	}
 }
 
+@private
 OPERATOR_MAP :: #partial #sparse [TokenKind]string{
 	.Plus = "+",
 	.Minus = "-",
