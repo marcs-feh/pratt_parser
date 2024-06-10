@@ -4,7 +4,7 @@ import "core:fmt"
 import "core:strings"
 import "core:mem"
 
-SOURCE :: "arr[1]! + 4 / 4!"
+SOURCE :: "arr[1]! + (4 / 4)!"
 
 COMPILER_MEMORY_POOL : [16 * mem.Megabyte]byte
 
@@ -15,7 +15,10 @@ main :: proc(){
 	defer free_all(context.allocator)
 
 	tokens := tokenize(SOURCE)
-	ast := parse(tokens)
+	ast, err := parse(tokens)
+	if err != nil {
+		fmt.panicf("Parser exited with errors.")
+	}
 	fmt.println(tokens)
 	fmt.println(to_sexpression(ast))
 }

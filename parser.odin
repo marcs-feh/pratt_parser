@@ -7,31 +7,35 @@ Parser :: struct {
 	tokens: []Token,
 }
 
-parse :: proc(tokens: []Token) -> ^Expression {
+parse :: proc(tokens: []Token) -> (^Expression, Error) {
 	parser := Parser {
+		current = 0,
 		tokens = tokens,
 	}
-
 	return parse_expr(&parser, 0)
 }
 
-parse_expr :: proc(parser: ^Parser, min_bp: int) -> ^Expression {
-	left : ^Expression
-	tk := parser_consume(parser)
+parse_expr :: proc(parser: ^Parser, min_bp: int) -> (left: ^Expression, err: Error) {
+	head := parser_consume(parser)
 
 	// Unary or Primary expression
-	#partial switch tk.kind {
+	#partial switch head.kind {
 	case .Number, .Identifier:
-		left = make_primary(tk.payload)
+		left = make_primary(head.payload)
 	case .ParenOpen:
-		left = parse_expr(parser, 0)
-		assert(parser_consume(parser).kind == .ParenClose, "Expected ')'")
+		left = parse_expr(parser, 0) or_return
+		if tk, ok := parser_consume_expected(parser, .ParenClose); !ok {
+			fmt.printf("Expected ')' but found %v", tk.kind)
+			return nil, .Missing_Expected
+		}
 	case .Plus, .Minus:
-		rbp := prefix_binding_power(tk)
-		right := parse_expr(parser, rbp)
-		left = make_unary(tk.kind, right)
+		rbp, prefix_ok := prefix_binding_power(head)
+		assert(prefix_ok)
+		right := parse_expr(parser, rbp) or_return
+		left = make_unary(head.kind, right)
 	case:
-		fmt.panicf("Unexpected token: %v", tk.kind)
+		fmt.printf("Unexpected token: %v", head.kind)
+		return nil, .Unexpected
 	}
 
 	// Binary "precedence climbing"
@@ -44,12 +48,17 @@ parse_expr :: proc(parser: ^Parser, min_bp: int) -> ^Expression {
 			if lbp < min_bp { break }
 			_ = parser_consume(parser)
 
-			if lookahead.kind == .SquareOpen {
-				index := parse_expr(parser, 0)
-				assert(parser_consume(parser).kind == .SquareClose, "Expected ']'")
+			#partial switch lookahead.kind {
+			case .SquareOpen:
+				index := parse_expr(parser, 0) or_return
+				if tk, ok := parser_consume_expected(parser, .SquareClose); !ok {
+					fmt.printfln("Expression ']' but found %v", tk.kind)
+					return nil, .Missing_Expected
+				}
 				left = make_index(left, index)
-			}
-			else {
+			case .ParenOpen:
+				unimplemented()
+			case:
 				left = make_unary(lookahead.kind, left)
 			}
 			continue
@@ -59,7 +68,7 @@ parse_expr :: proc(parser: ^Parser, min_bp: int) -> ^Expression {
 			if lbp < min_bp { break }
 
 			_ = parser_consume(parser)
-			right := parse_expr(parser, rbp)
+			right := parse_expr(parser, rbp) or_return
 
 			left = make_binary(left, lookahead.kind, right)
 		}
@@ -68,7 +77,7 @@ parse_expr :: proc(parser: ^Parser, min_bp: int) -> ^Expression {
 		break
 	}
 
-	return left
+	return
 }
 
 make_unary :: proc(op: TokenKind, operand: ^Expression) -> ^Expression {
@@ -121,11 +130,20 @@ parser_consume :: proc(parser: ^Parser) -> Token {
 	return parser.tokens[parser.current - 1]
 }
 
+@(require_results)
+parser_consume_expected :: proc(parser: ^Parser, expect: TokenKind) -> (Token, bool){
+	tk := parser_consume(parser)
+	if tk.kind != expect {
+		parser.current -= 1
+		return tk, false
+	}
+	return tk, true
+}
 
-prefix_binding_power :: proc(tk: Token) -> (rbp: int){
+prefix_binding_power :: proc(tk: Token) -> (rbp: int, ok := false){
 	#partial switch tk.kind {
-	case .Plus, .Minus: return 90
-	case: fmt.panicf("Not a unary operator: %v", tk.kind)
+	case .Plus, .Minus: return 90, true
+	case: return
 	}
 }
 
